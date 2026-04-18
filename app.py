@@ -125,21 +125,29 @@ class EmotionPredictor:
         """Extract audio features - Returns (time_steps, features)"""
         try:
             self.last_error = None
+            print(f"Starting feature extraction for: {audio_path}", flush=True)
             y, sr = librosa.load(audio_path, sr=self.sr)
+            print(f"Audio loaded: samples={len(y)}, sr={sr}", flush=True)
             
             # MFCC - shape: (n_mfcc, time)
             mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=self.n_mfcc)
+            print(f"MFCC extracted: shape={mfcc.shape}", flush=True)
             
             # Spectral features - shape: (1, time)
             spec_cent = librosa.feature.spectral_centroid(y=y, sr=sr)
             spec_roll = librosa.feature.spectral_rolloff(y=y, sr=sr)
             zero_cross = librosa.feature.zero_crossing_rate(y)
+            print(
+                f"Spectral features extracted: centroid={spec_cent.shape}, rolloff={spec_roll.shape}, zcr={zero_cross.shape}",
+                flush=True,
+            )
             
             # Combine features: (43, time)
             features = np.vstack([mfcc, spec_cent, spec_roll, zero_cross])
             
             # TRANSPOSE to (time, features) format
             features = features.T
+            print(f"Combined features ready: shape={features.shape}", flush=True)
             
             return features
         except Exception as e:
@@ -165,6 +173,7 @@ class EmotionPredictor:
         """Predict emotion"""
         try:
             self.last_error = None
+            print(f"Starting prediction for: {audio_path}", flush=True)
             # Extract features
             features = self.extract_features(audio_path)
             if features is None:
@@ -172,18 +181,26 @@ class EmotionPredictor:
             
             # Pad to expected length
             features = self.pad_features(features)
+            print(f"Features padded: shape={features.shape}", flush=True)
             
             # Normalize
             features = (features - features.mean()) / (features.std() + 1e-8)
+            print(
+                f"Features normalized: mean={float(features.mean()):.6f}, std={float(features.std()):.6f}",
+                flush=True,
+            )
             
             # Add batch dimension: (1, max_len, features)
             features = np.expand_dims(features, axis=0)
+            print(f"Running model inference with shape={features.shape}", flush=True)
             
             # Predict
             predictions = model.predict(features, verbose=0)
+            print(f"Model inference complete: output_shape={predictions.shape}", flush=True)
             emotion_idx = np.argmax(predictions[0])
             confidence = float(predictions[0][emotion_idx])
             emotion = EMOTION_LABELS[emotion_idx]
+            print(f"Prediction result: emotion={emotion}, confidence={confidence:.6f}", flush=True)
             
             return emotion, confidence
         except Exception as e:
