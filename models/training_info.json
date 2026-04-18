@@ -1,0 +1,22 @@
+{
+  "test_accuracy": 0.2986111044883728,
+  "test_loss": 3.969813823699951,
+  "total_samples": 1440,
+  "ravdess_samples": 1440,
+  "tess_samples": 0,
+  "crema_d_samples": 0,
+  "emotions": [
+    "neutral",
+    "calm",
+    "happy",
+    "sad",
+    "angry",
+    "fearful",
+    "disgusted",
+    "surprised"
+  ],
+  "input_shape": [
+    100,
+    43
+  ]
+}

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speech-emotion"
+version = "1.0.0"
+description = "Speech Emotion Recognition System"
+requires-python = ">=3.10"
+dependencies = [
+    "Flask==2.3.0",
+    "librosa==0.10.1",
+    "numpy==1.24.3",
+    "pandas==2.0.3",
+    "scikit-learn==1.2.2",
+    "tensorflow-cpu==2.13.0",
+    "keras==2.13.1",
+    "matplotlib==3.7.2",
+    "soundfile==0.12.1",
+    "gdown==4.7.1",
+]
