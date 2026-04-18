@@ -855,6 +855,7 @@
         let recordInterval = null;
         let recordSeconds = 0;
         let audioPlayer = null;
+        let recordedMimeType = '';
 
         // Initialize UI Grid
         function initGrid() {
@@ -953,13 +954,31 @@
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                const preferredMimeTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/mp4'
+                ];
+                const recorderMimeType = preferredMimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+                mediaRecorder = recorderMimeType
+                    ? new MediaRecorder(stream, { mimeType: recorderMimeType })
+                    : new MediaRecorder(stream);
                 audioChunks = [];
 
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                 mediaRecorder.onstop = () => {
-                    recordedBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    currentFile = new File([recordedBlob], "recorded_audio.wav", { type: 'audio/wav' });
+                    recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
+                    const extensionMap = {
+                        'audio/webm': 'webm',
+                        'audio/webm;codecs=opus': 'webm',
+                        'audio/ogg': 'ogg',
+                        'audio/ogg;codecs=opus': 'ogg',
+                        'audio/mp4': 'm4a'
+                    };
+                    const extension = extensionMap[recordedMimeType] || 'webm';
+                    recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
+                    currentFile = new File([recordedBlob], `recorded_audio.${extension}`, { type: recordedMimeType });
                     
                     analyzeBtn.classList.add('active');
                     
@@ -1030,6 +1049,7 @@
 
         function clearRecording() {
             recordedBlob = null;
+            recordedMimeType = '';
             if(audioPlayer) audioPlayer.pause();
             playBtn.disabled = true;
             timerDisplay.textContent = "00:00";
