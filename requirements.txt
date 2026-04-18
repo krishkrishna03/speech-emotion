@@ -7,6 +7,6 @@ tensorflow-cpu==2.16.1
 matplotlib==3.7.2
 soundfile==0.12.1
 gdown==4.7.1
-setuptools>=68
+setuptools==69.5.1
 wheel
 gunicorn==21.2.0
