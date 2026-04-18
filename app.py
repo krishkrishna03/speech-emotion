@@ -15,13 +15,17 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / 'models'
+UPLOADS_DIR = BASE_DIR / 'uploads'
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = str(UPLOADS_DIR)
 
 # Create uploads folder
-os.makedirs('uploads', exist_ok=True)
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Emotion labels
 EMOTION_LABELS = ['neutral', 'calm', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised']
@@ -40,13 +44,15 @@ EMOTION_COLORS = {
 model = None
 label_encoder = None
 feature_params = None
+model_load_error = None
 
 import json
 import h5py
 
 def patch_model_config(filepath):
     try:
-        if not os.path.exists(filepath): return
+        if not os.path.exists(filepath):
+            return
         modified = False
         with h5py.File(filepath, 'r+') as f:
             if 'model_config' in f.attrs:
@@ -69,19 +75,23 @@ def patch_model_config(filepath):
 
 def load_models():
     """Load trained model and encoders"""
-    global model, label_encoder, feature_params, predictor
+    global model, label_encoder, feature_params, predictor, model_load_error
     
     try:
+        model_path = MODELS_DIR / 'emotion_model.h5'
+        label_encoder_path = MODELS_DIR / 'label_encoder.pkl'
+        feature_params_path = MODELS_DIR / 'feature_params.pkl'
         print("Loading model...", flush=True)
-        patch_model_config('models/emotion_model.h5')
-        model = keras.models.load_model('models/emotion_model.h5')
+        print(f"Using model path: {model_path}", flush=True)
+        patch_model_config(str(model_path))
+        model = keras.models.load_model(model_path)
         print("✓ Model loaded")
         
-        with open('models/label_encoder.pkl', 'rb') as f:
+        with open(label_encoder_path, 'rb') as f:
             label_encoder = pickle.load(f)
         print("✓ Label encoder loaded")
         
-        with open('models/feature_params.pkl', 'rb') as f:
+        with open(feature_params_path, 'rb') as f:
             feature_params = pickle.load(f)
         print("✓ Feature params loaded")
         
@@ -93,9 +103,11 @@ def load_models():
             max_len=max_len
         )
         
+        model_load_error = None
         return True
     except Exception as e:
         import traceback
+        model_load_error = str(e) + "\n" + traceback.format_exc()
         print(f"✗ Error loading model: {e}", flush=True)
         traceback.print_exc()
         return False
@@ -193,7 +205,7 @@ def predict():
     try:
         # Check if model is loaded
         if model is None:
-            return jsonify({'error': 'Model not loaded. Please train the model first.'}), 500
+            return jsonify({'error': f"Model failed to load on backend. Error:\n{model_load_error}"}), 500
         
         # Check if file is provided
         if 'audio' not in request.files:
