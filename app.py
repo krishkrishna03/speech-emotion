@@ -119,10 +119,12 @@ class EmotionPredictor:
         self.sr = sr
         self.n_mfcc = n_mfcc
         self.max_len = max_len
+        self.last_error = None
     
     def extract_features(self, audio_path):
         """Extract audio features - Returns (time_steps, features)"""
         try:
+            self.last_error = None
             y, sr = librosa.load(audio_path, sr=self.sr)
             
             # MFCC - shape: (n_mfcc, time)
@@ -142,6 +144,7 @@ class EmotionPredictor:
             return features
         except Exception as e:
             import traceback
+            self.last_error = f"Feature extraction failed: {e}"
             print(f"Error extracting features: {e}", flush=True)
             traceback.print_exc()
             return None
@@ -161,6 +164,7 @@ class EmotionPredictor:
     def predict(self, audio_path):
         """Predict emotion"""
         try:
+            self.last_error = None
             # Extract features
             features = self.extract_features(audio_path)
             if features is None:
@@ -184,6 +188,7 @@ class EmotionPredictor:
             return emotion, confidence
         except Exception as e:
             import traceback
+            self.last_error = f"Prediction failed: {e}"
             print(f"Error during prediction: {e}", flush=True)
             traceback.print_exc()
             return None, None
@@ -202,6 +207,7 @@ def index():
 @app.route('/predict', methods=['POST'])
 def predict():
     """Handle audio upload and prediction"""
+    filepath = None
     try:
         # Check if model is loaded
         if model is None:
@@ -219,6 +225,10 @@ def predict():
         # Save file
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(
+            f"Received upload: filename={file.filename}, content_type={file.content_type}, saved_to={filepath}",
+            flush=True,
+        )
         file.save(filepath)
         
         # Predict emotion
@@ -226,10 +236,7 @@ def predict():
         
         if emotion is None:
             print("Error during prediction block returned None", flush=True)
-            return jsonify({'error': 'Error processing audio file'}), 500
-        
-        # Clean up
-        os.remove(filepath)
+            return jsonify({'error': predictor.last_error or 'Error processing audio file'}), 500
         
         # Return prediction
         return jsonify({
@@ -244,6 +251,9 @@ def predict():
         print("Exception in predict route:", flush=True)
         traceback.print_exc()
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+    finally:
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
 
 @app.route('/health', methods=['GET'])
 def health():
