@@ -17,4 +17,5 @@ dependencies = [
     "matplotlib==3.7.2",
     "soundfile==0.12.1",
     "gdown==4.7.1",
+    "setuptools==69.5.1",
 ]
