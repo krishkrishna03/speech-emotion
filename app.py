@@ -68,7 +68,9 @@ def load_models():
         
         return True
     except Exception as e:
-        print(f"✗ Error loading model: {e}")
+        import traceback
+        print(f"✗ Error loading model: {e}", flush=True)
+        traceback.print_exc()
         return False
 
 class EmotionPredictor:
@@ -146,6 +148,9 @@ class EmotionPredictor:
 # Initialize predictor
 predictor = EmotionPredictor(sr=22050, n_mfcc=40, max_len=100)
 
+# Load models globally so gunicorn can load them
+load_models()
+
 @app.route('/')
 def index():
     """Serve the HTML interface"""
@@ -210,10 +215,14 @@ if __name__ == '__main__':
     
     # Load models
     if not load_models():
-        print("\n✗ Failed to load model!")
-        print("Please run: python train_model.py")
+        print("\n✗ Failed to load model! But starting server anyway for health checks.", flush=True)
+        print("Please run: python train_model.py", flush=True)
     else:
-        print("\n✓ Application ready!")
-        print("Open http://localhost:5000 in your browser")
-        print("=" * 60)
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        print("\n✓ Application ready!", flush=True)
+        
+    print("Open http://0.0.0.0:5000 in your browser", flush=True)
+    print("=" * 60, flush=True)
+    
+    # Try to get PORT from environment (default to 5000 for local)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
