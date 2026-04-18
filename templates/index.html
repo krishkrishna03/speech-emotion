@@ -940,6 +940,69 @@
             showState('idle');
         }
 
+        async function blobToWavFile(blob) {
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            try {
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+                const wavBuffer = audioBufferToWav(audioBuffer);
+                const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+                return new File([wavBlob], 'recorded_audio.wav', { type: 'audio/wav' });
+            } finally {
+                await audioContext.close();
+            }
+        }
+
+        function audioBufferToWav(audioBuffer) {
+            const numChannels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const format = 1;
+            const bitDepth = 16;
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const dataLength = audioBuffer.length * blockAlign;
+            const buffer = new ArrayBuffer(44 + dataLength);
+            const view = new DataView(buffer);
+
+            writeAsciiString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataLength, true);
+            writeAsciiString(view, 8, 'WAVE');
+            writeAsciiString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeAsciiString(view, 36, 'data');
+            view.setUint32(40, dataLength, true);
+
+            const channelData = [];
+            for (let channel = 0; channel < numChannels; channel++) {
+                channelData.push(audioBuffer.getChannelData(channel));
+            }
+
+            let offset = 44;
+            for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex++) {
+                for (let channel = 0; channel < numChannels; channel++) {
+                    const sample = Math.max(-1, Math.min(1, channelData[channel][sampleIndex]));
+                    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+                    view.setInt16(offset, intSample, true);
+                    offset += bytesPerSample;
+                }
+            }
+
+            return buffer;
+        }
+
+        function writeAsciiString(view, offset, value) {
+            for (let i = 0; i < value.length; i++) {
+                view.setUint8(offset + i, value.charCodeAt(i));
+            }
+        }
+
         clearFileBtn.addEventListener('click', () => {
             currentFile = null;
             fileInput.value = '';
@@ -967,24 +1030,24 @@
                 audioChunks = [];
 
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
-                    const extensionMap = {
-                        'audio/webm': 'webm',
-                        'audio/webm;codecs=opus': 'webm',
-                        'audio/ogg': 'ogg',
-                        'audio/ogg;codecs=opus': 'ogg',
-                        'audio/mp4': 'm4a'
-                    };
-                    const extension = extensionMap[recordedMimeType] || 'webm';
-                    recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
-                    currentFile = new File([recordedBlob], `recorded_audio.${extension}`, { type: recordedMimeType });
-                    
-                    analyzeBtn.classList.add('active');
-                    
-                    // Cleanup visualizer
-                    visualizerBars.forEach(b => b.classList.remove('active'));
-                    clearInterval(recordInterval);
+                mediaRecorder.onstop = async () => {
+                    try {
+                        recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
+                        const sourceBlob = new Blob(audioChunks, { type: recordedMimeType });
+                        currentFile = await blobToWavFile(sourceBlob);
+                        recordedBlob = currentFile;
+                        analyzeBtn.classList.add('active');
+                        timerDisplay.textContent = "Saved as WAV. Ready to analyze.";
+                    } catch (err) {
+                        console.error(err);
+                        currentFile = null;
+                        recordedBlob = null;
+                        analyzeBtn.classList.remove('active');
+                        showToast(`Recording conversion failed: ${err.message}`);
+                    } finally {
+                        visualizerBars.forEach(b => b.classList.remove('active'));
+                        clearInterval(recordInterval);
+                    }
                 };
 
                 // Clear previous files
@@ -1072,8 +1135,13 @@
                     method: 'POST',
                     body: formData
                 });
-                
-                const data = await response.json();
+                const responseText = await response.text();
+                let data = {};
+                try {
+                    data = responseText ? JSON.parse(responseText) : {};
+                } catch (parseErr) {
+                    data = { error: responseText || "Analysis failed" };
+                }
                 
                 if(response.ok && data.success) {
                     displayResult(data.emotion, data.confidence);
