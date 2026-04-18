@@ -41,12 +41,39 @@ model = None
 label_encoder = None
 feature_params = None
 
+import json
+import h5py
+
+def patch_model_config(filepath):
+    try:
+        if not os.path.exists(filepath): return
+        modified = False
+        with h5py.File(filepath, 'r+') as f:
+            if 'model_config' in f.attrs:
+                config_str = f.attrs['model_config']
+                if isinstance(config_str, bytes):
+                    config_str = config_str.decode('utf-8')
+                config = json.loads(config_str)
+                
+                if 'config' in config and 'layers' in config['config']:
+                    for layer in config['config']['layers']:
+                        if 'config' in layer and 'batch_shape' in layer['config']:
+                            layer['config']['batch_input_shape'] = layer['config'].pop('batch_shape')
+                            modified = True
+                            
+                if modified:
+                    f.attrs['model_config'] = json.dumps(config).encode('utf-8')
+                    print("✓ Patched model config for version compatibility", flush=True)
+    except Exception as e:
+        print(f"Info: Could not patch model config (might be normal): {e}", flush=True)
+
 def load_models():
     """Load trained model and encoders"""
     global model, label_encoder, feature_params, predictor
     
     try:
-        print("Loading model...")
+        print("Loading model...", flush=True)
+        patch_model_config('models/emotion_model.h5')
         model = keras.models.load_model('models/emotion_model.h5')
         print("✓ Model loaded")
         
