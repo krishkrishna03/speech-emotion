@@ -129,7 +129,9 @@ class EmotionPredictor:
             
             return features
         except Exception as e:
-            print(f"Error extracting features: {e}")
+            import traceback
+            print(f"Error extracting features: {e}", flush=True)
+            traceback.print_exc()
             return None
     
     def pad_features(self, features):
@@ -169,7 +171,9 @@ class EmotionPredictor:
             
             return emotion, confidence
         except Exception as e:
-            print(f"Error during prediction: {e}")
+            import traceback
+            print(f"Error during prediction: {e}", flush=True)
+            traceback.print_exc()
             return None, None
 
 # Initialize predictor
@@ -209,6 +213,7 @@ def predict():
         emotion, confidence = predictor.predict(filepath)
         
         if emotion is None:
+            print("Error during prediction block returned None", flush=True)
             return jsonify({'error': 'Error processing audio file'}), 500
         
         # Clean up
@@ -223,7 +228,10 @@ def predict():
         })
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        print("Exception in predict route:", flush=True)
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
