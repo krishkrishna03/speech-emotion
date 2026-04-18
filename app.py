@@ -252,7 +252,8 @@ def health():
     return jsonify({
         'status': 'running',
         'model_loaded': model_loaded,
-        'emotions': EMOTION_LABELS
+        'emotions': EMOTION_LABELS,
+        'model_load_error': model_load_error
     })
 
 if __name__ == '__main__':
